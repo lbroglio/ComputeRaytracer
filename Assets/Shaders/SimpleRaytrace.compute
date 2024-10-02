@@ -1,0 +1,152 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Struct which represents a sphere in the scene
+public struct Sphere{
+    float3 centerCoords;
+    float radius;
+    float4 matColor;
+    // TODO: Add more material properties
+}
+
+// Struct which represents a Ray cast in the screen
+public struct Ray{
+    float3 origin;
+    float3 direction;
+}
+
+// Struct which represents the properties of the screen
+public struct Screen{
+    // Width of the screen in pixels
+    int screenWidthPixels;
+    // Height of the screen in pixels
+    int screenHeightPixels;
+    // The width of the screen in world coordiantes
+    int screenWidthCoords;
+    // The height of the screen in world coordinates
+    int screenHeightCoords;
+
+}
+
+
+// Color to make pixels which don't intersect with any objects
+float4 backgroundColor;
+
+// Location of the camera in the scene
+float3 camLoc;
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Result;
+
+// Buffer to fill with the objects in the world
+StructuredBuffer<Sphere> Objects;
+
+// Number of object in the world (size of _objects)
+int numObjects;
+
+// The screen 
+Screen s;
+
+// Calculate the distance between points a and b in 3D space
+float Dist3D(float3 a, float3 b){
+    return sqr(pow(a.x - b.x, 2) + pow(a.y - b.y, 2) + pow(a.z - b.z, 2))
+}
+
+// Get the dot product of two vectors
+float DotProd(float3 a, float3 b){
+    return (a.x * v.x) + (a.y * v.y) +  (a.z * v.z);
+}
+
+// Create a ray which shoots through the pixel with the given x and y location on the screen
+Ray CreateRayFromPixelLoc(int x, int y){
+    // Calculate the size of a pixel in world coords
+    float pixelSize = s.screenWidthCoords / s.screenWidthPixels;  
+
+    // Calculate x and y position of pixel the Ray should pass through
+    float pixShiftX = (x - (s.screenWidthPixels / 2)) * pixelSize;
+    float pixShiftY = (y - (s.screenHeightPixels / 2)) * pixelSize;
+
+    // Create direction vector of ray 
+    float3 direction = float3(camLoc.x + pixShiftX, camLoc.y + pixShiftY, camLoc.z + 1);
+
+    // Create ray structure to return 
+    Ray retVal;
+    retVal.origin = float3(camLoc.x, camLoc.y, camLoc.z);
+    retVal.direction = direction;
+
+    return retVal;
+}
+
+// Return the closest distance along Ray r at which the r and Sphere s intersect. 
+// If they don't intersect return -1
+float FindIntersectionPoint(Ray r, Sphere s){
+    // Check for intersection by calculating the discriminant of the equation created by combining them (TODO: Reword)
+
+    // Calculate r.origin - s.center
+    float3 ocDiff = float3(r.origin.x - s.centerCoords.x, r.origin.y - s.centerCoords.y, r.origin.z - s.centerCoords.z);
+
+    // Note: a,b, and c are coefficients in a quadratic equation
+    // Calculate a 
+    float a = DotProd(r.direction, r.direction);
+
+    // Calculate b 
+    float b = 2 * DotProd(r.direction, ocDiff);
+
+    // Calculate c 
+    float c = DotProd(ocDiff, ocDiff) - (r.radius * r.radius);
+
+    // Calculate the discriminant
+    float discriminant = (b * b) - (4 * a * c);
+
+    // If the discriminant is negative return -1 to indicate no intersection
+    if(discriminant < 0){
+        return -1;
+    }
+    else{
+        // Return the intersection point closest to the camera 
+        return ((-1 * b) - sqrt(discriminant)) / (2.0 * a);
+    }
+}
+
+// Find the color a given pixel should be by casting a ray into the scene
+float3 CastRay(int x, int y){
+    // Create the ray 
+    Ray r = CreateRayFromPixelLoc(x, y);
+
+    float3 closestPoint;
+    float3 closestPointDist = -1;
+
+    // Find the closest intersection point between the ray and the spheres (If one exists)
+    for(int i =0; i < numObjects; i++){
+        // Get the sphere
+        Sphere s = Objects[i];
+
+        // Get (closest) point along r it intersects with s
+        float t = FindIntersectionPoint(r, s);
+
+        // If t < 0  move on because r either doesn't intersect s at all or if intersects it behind the camera
+        if(t >= 0){
+            // If t is less than the currently saved distance save this intersection as the new closest
+            if(closestPointDist > t){
+                // Set to  point corresponding to t distance along r
+                closestPoint = float3(r.origin.x + (r.direction.x * t), r.origin.y + (r.direction.y * t), r.origin.z + (r.direction.z * t));
+
+            }        
+        }
+    }
+
+    // If a point was found return its material color 
+    // TODO: Add more complex materials and lighting calculation
+    // If no intersection was found return background color
+    
+}
+
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    // TODO: insert actual code here!
+
+    Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+}
