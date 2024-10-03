@@ -2,32 +2,19 @@
 #pragma kernel CSMain
 
 // Struct which represents a sphere in the scene
-public struct Sphere{
+struct Sphere{
     float3 centerCoords;
     float radius;
     float4 matColor;
+
     // TODO: Add more material properties
-}
+};
 
 // Struct which represents a Ray cast in the screen
-public struct Ray{
+struct Ray{
     float3 origin;
     float3 direction;
-}
-
-// Struct which represents the properties of the screen
-public struct Screen{
-    // Width of the screen in pixels
-    int screenWidthPixels;
-    // Height of the screen in pixels
-    int screenHeightPixels;
-    // The width of the screen in world coordiantes
-    int screenWidthCoords;
-    // The height of the screen in world coordinates
-    int screenHeightCoords;
-
-}
-
+};
 
 // Color to make pixels which don't intersect with any objects
 float4 backgroundColor;
@@ -43,29 +30,40 @@ RWTexture2D<float4> Result;
 StructuredBuffer<Sphere> Objects;
 
 // Number of object in the world (size of _objects)
-int numObjects;
+uint numObjects;
 
-// The screen 
-Screen s;
+// Width of the screen in pixels
+uint screenWidthPixels;
+// Height of the screen in pixels
+uint screenHeightPixels;
+// The width of the screen in world coordiantes
+float screenWidthCoords;
+// The height of the screen in world coordinates
+float screenHeightCoords;
+
+// Value used to calculate how colors darken when they are farther away from the camera. 
+// Currently arbitrary and best set using trial and error
+uint darkenScaleVal = 6;
 
 // Calculate the distance between points a and b in 3D space
 float Dist3D(float3 a, float3 b){
-    return sqr(pow(a.x - b.x, 2) + pow(a.y - b.y, 2) + pow(a.z - b.z, 2))
+    return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2) + pow(a.z - b.z, 2));
 }
+
 
 // Get the dot product of two vectors
 float DotProd(float3 a, float3 b){
-    return (a.x * v.x) + (a.y * v.y) +  (a.z * v.z);
+    return (a.x * b.x) + (a.y * b.y) +  (a.z * b.z);
 }
 
 // Create a ray which shoots through the pixel with the given x and y location on the screen
-Ray CreateRayFromPixelLoc(int x, int y){
+Ray CreateRayFromPixelLoc(uint x, uint y){
     // Calculate the size of a pixel in world coords
-    float pixelSize = s.screenWidthCoords / s.screenWidthPixels;  
+    float pixelSize = screenWidthCoords / screenWidthPixels;  
 
     // Calculate x and y position of pixel the Ray should pass through
-    float pixShiftX = (x - (s.screenWidthPixels / 2)) * pixelSize;
-    float pixShiftY = (y - (s.screenHeightPixels / 2)) * pixelSize;
+    float pixShiftX = (x - (screenWidthPixels / 2)) * pixelSize;
+    float pixShiftY = (y - (screenHeightPixels / 2)) * pixelSize;
 
     // Create direction vector of ray 
     float3 direction = float3(camLoc.x + pixShiftX, camLoc.y + pixShiftY, camLoc.z + 1);
@@ -94,7 +92,7 @@ float FindIntersectionPoint(Ray r, Sphere s){
     float b = 2 * DotProd(r.direction, ocDiff);
 
     // Calculate c 
-    float c = DotProd(ocDiff, ocDiff) - (r.radius * r.radius);
+    float c = DotProd(ocDiff, ocDiff) - (s.radius * s.radius);
 
     // Calculate the discriminant
     float discriminant = (b * b) - (4 * a * c);
@@ -104,21 +102,21 @@ float FindIntersectionPoint(Ray r, Sphere s){
         return -1;
     }
     else{
-        // Return the intersection point closest to the camera 
+        // Return the intersection point closest to the camera `
         return ((-1 * b) - sqrt(discriminant)) / (2.0 * a);
     }
 }
 
 // Find the color a given pixel should be by casting a ray into the scene
-float3 CastRay(int x, int y){
+float4 CastRay(uint x, uint y){
     // Create the ray 
     Ray r = CreateRayFromPixelLoc(x, y);
 
     float3 closestPoint;
-    float3 closestPointDist = -1;
+    float closestPointDist = -1;
 
     // Find the closest intersection point between the ray and the spheres (If one exists)
-    for(int i =0; i < numObjects; i++){
+    for(uint i =0; i < numObjects; i++){
         // Get the sphere
         Sphere s = Objects[i];
 
@@ -136,9 +134,23 @@ float3 CastRay(int x, int y){
         }
     }
 
-    // If a point was found return its material color 
+    // If a point was found return its material color scaled by the distance
     // TODO: Add more complex materials and lighting calculation
     // If no intersection was found return background color
+    if(closestPointDist == -1){
+        return backgroundColor;
+    }
+    else{
+        //TODO: Look into changing this from using an arbitrary value to emulating the inverse square law
+        // Get the distance between intersection point and the camera
+        float distMod = closestPointDist * darkenScaleVal;
+        // Subtract the dist mode from the material color of the intersected object
+        float4 baseColor = Objects[i].matColor;
+        // TODO: Don't hardcode once/if see through materials are introduced
+        float4 changedColor = float4(1, max(baseColor.x - distMod, 0), max(baseColor.y - distMod, 0), max(baseColor.z - distMod, 0));
+
+        return changedColor;
+    }
     
 }
 
@@ -146,7 +158,8 @@ float3 CastRay(int x, int y){
 [numthreads(8,8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
-    // TODO: insert actual code here!
+    // Get color to make this pixel using a raycast
+    float4 pixelCol = CastRay(id.x, id.y);
 
-    Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+    Result[id.xy] = pixelCol;
 }
