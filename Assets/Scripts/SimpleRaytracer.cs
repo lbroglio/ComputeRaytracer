@@ -54,9 +54,8 @@ public class SimpleRaytracer : MonoBehaviour
             GameObject rObj = _raytracingObjects[i];
             TSphere s = new TSphere();
             s.center = rObj.transform.position;
-            s.radius = rObj.transform.localScale.x;
-            //s.matColor = rObj.GetComponent<MeshRenderer>().material.color;
-            s.matColor = new Vector4(0, 0, 0, 1);
+            s.radius = 0.25f;
+            s.matColor = rObj.GetComponent<MeshRenderer>().material.color;
             spheres[i] = s;
         }
 
@@ -79,10 +78,10 @@ public class SimpleRaytracer : MonoBehaviour
         Raytracer.SetInt("screenWidthPixels", Screen.width);
         Raytracer.SetInt("screenHeightPixels", Screen.height);
         // Calculate the size of the camera in world coordiantes
-        float aspect = (float)Screen.width / Screen.height;
-        float worldWidth = 10;
-        Raytracer.SetFloat("screenWidthCoords", worldWidth);
-        Raytracer.SetFloat("screenHeightCoords", worldWidth / aspect);
+        float aspect = ((float)Screen.width) / Screen.height;
+        float worldHeight = 3;
+        Raytracer.SetFloat("screenWidthCoords", worldHeight * (((float) Screen.width) / Screen.height));
+        Raytracer.SetFloat("screenHeightCoords", worldHeight);
 
         // Set buffer data
         oBuffer.SetData(spheres);

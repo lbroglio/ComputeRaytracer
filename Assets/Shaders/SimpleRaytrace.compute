@@ -39,7 +39,7 @@ uint screenHeightPixels;
 // The width of the screen in world coordiantes
 float screenWidthCoords;
 // The height of the screen in world coordinates
-uint screenHeightCoords;
+float screenHeightCoords;
 
 // Value used to calculate how colors darken when they are farther away from the camera. 
 // Currently arbitrary and best set using trial and error
@@ -61,12 +61,16 @@ Ray CreateRayFromPixelLoc(uint x, uint y){
     // Calculate the size of a pixel in world coords
     float pixelSize = screenWidthCoords / screenWidthPixels;  
 
-    // Calculate x and y position of pixel the Ray should pass through
-    float pixShiftX = (x - (screenWidthPixels / 2)) * pixelSize;
-    float pixShiftY = ((screenHeightPixels / 2) - y) * pixelSize;
+    // Calculate the x and y change in world coords needed to move by a pixel
+    float pixShiftX = screenWidthCoords / screenWidthPixels;
+    float pixShiftY = ( -1 * screenHeightCoords) / screenHeightPixels;
+
+    // Calculate the position in world coords of the upper left pixel 
+    float3 worldUpperLeft = float3(camLoc.x - (screenWidthCoords / 2), camLoc.y + (screenHeightCoords / 2), camLoc.z + 1);
+    float3 firstPixelLoc = float3(worldUpperLeft.x + (0.5 * pixShiftX), worldUpperLeft.y + (0.5 * pixShiftY), worldUpperLeft.z);
 
     // Create direction vector of ray 
-    float3 direction = float3(camLoc.x + pixShiftX, camLoc.y + pixShiftY, camLoc.z + 1);
+    float3 direction = float3(firstPixelLoc.x + (x * pixShiftX), firstPixelLoc.y + (y * pixShiftY), camLoc.z + firstPixelLoc.z);
 
     // Create ray structure to return 
     Ray retVal;
@@ -115,6 +119,8 @@ float4 CastRay(uint x, uint y){
     float3 closestPoint;
     // Start with an arbitrary high number of a stand in for infinity
     float closestPointDist = 10000;
+    // Index in the buffer of sphere intersected with 
+    uint closestPointObjIndex = 0;
 
     // Find the closest intersection point between the ray and the spheres (If one exists)
     for(uint i =0; i < numObjects; i++){
@@ -131,6 +137,7 @@ float4 CastRay(uint x, uint y){
                 // Set to  point corresponding to t distance along r
                 closestPoint = float3(r.origin.x + (r.direction.x * t), r.origin.y + (r.direction.y * t), r.origin.z + (r.direction.z * t));
                 closestPointDist = t;
+                closestPointObjIndex = i;
             }        
         }
     }
@@ -144,9 +151,9 @@ float4 CastRay(uint x, uint y){
     else{
         //TODO: Look into changing this from using an arbitrary value to emulating the inverse square law
         // Get the distance between intersection point and the camera
-        float distMod = closestPointDist * darkenScaleVal;
+        float distMod = closestPointDist / 100;
         // Subtract the dist mode from the material color of the intersected object
-        float4 baseColor = Objects[i].matColor;
+        float4 baseColor = Objects[closestPointObjIndex].matColor;
         // TODO: Don't hardcode once/if see through materials are introduced
         float4 changedColor = float4(max(baseColor.x - distMod, 0), max(baseColor.y - distMod, 0), max(baseColor.z - distMod, 0), 1);
 
