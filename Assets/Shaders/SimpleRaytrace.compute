@@ -50,27 +50,31 @@ float Dist3D(float3 a, float3 b){
     return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2) + pow(a.z - b.z, 2));
 }
 
-
-// Get the dot product of two vectors
-float DotProd(float3 a, float3 b){
-    return (a.x * b.x) + (a.y * b.y) +  (a.z * b.z);
-}
-
 // Create a ray which shoots through the pixel with the given x and y location on the screen
 Ray CreateRayFromPixelLoc(uint x, uint y){
     // Calculate the size of a pixel in world coords
     float pixelSize = screenWidthCoords / screenWidthPixels;  
 
     // Calculate the x and y change in world coords needed to move by a pixel
+    float aspectRatio = (float)screenWidthPixels / (float)screenHeightPixels;
     float pixShiftX = screenWidthCoords / screenWidthPixels;
-    float pixShiftY = ( -1 * screenHeightCoords) / screenHeightPixels;
+    float pixShiftY = (screenWidthCoords / screenHeightPixels) / aspectRatio;
 
     // Calculate the position in world coords of the upper left pixel 
     float3 worldUpperLeft = float3(camLoc.x - (screenWidthCoords / 2), camLoc.y + (screenHeightCoords / 2), camLoc.z + 1);
-    float3 firstPixelLoc = float3(worldUpperLeft.x + (0.5 * pixShiftX), worldUpperLeft.y + (0.5 * pixShiftY), worldUpperLeft.z);
+    float3 firstPixelLoc = float3(
+        worldUpperLeft.x + (0.5 * pixShiftX), 
+        worldUpperLeft.y - (0.5 * pixShiftY), 
+        worldUpperLeft.z);
+    
+    // Get the location of this pixel
+    float3 pixelWordPos = float3(
+        firstPixelLoc.x + (x * pixShiftX), 
+        firstPixelLoc.y - (y * pixShiftY), 
+        camLoc.z + 1.0);
 
-    // Create direction vector of ray 
-    float3 direction = float3(firstPixelLoc.x + (x * pixShiftX), firstPixelLoc.y + (y * pixShiftY), camLoc.z + firstPixelLoc.z);
+    // Create the direction vector
+    float3 direction = normalize(pixelWordPos - camLoc);
 
     // Create ray structure to return 
     Ray retVal;
@@ -86,17 +90,17 @@ float FindIntersectionPoint(Ray r, Sphere s){
     // Check for intersection by calculating the discriminant of the equation created by combining them (TODO: Reword)
 
     // Calculate r.origin - s.center
-    float3 ocDiff = float3(s.centerCoords.x - r.origin.x, s.centerCoords.y - r.origin.y, s.centerCoords.z - r.origin.z);
+    float3 ocDiff = r.origin - s.centerCoords;
 
     // Note: a,b, and c are coefficients in a quadratic equation
     // Calculate a 
-    float a = DotProd(r.direction, r.direction);
+    float a = dot(r.direction, r.direction);
 
     // Calculate b 
-    float b = -2 * DotProd(r.direction, ocDiff);
+    float b = 2 * dot(r.direction, ocDiff);
 
     // Calculate c 
-    float c = DotProd(ocDiff, ocDiff) - (s.radius * s.radius);
+    float c = dot(ocDiff, ocDiff) - (s.radius * s.radius);
 
     // Calculate the discriminant
     float discriminant = (b * b) - (4 * a * c);
@@ -106,8 +110,26 @@ float FindIntersectionPoint(Ray r, Sphere s){
         return -1;
     }
     else{
-        // Return the intersection point closest to the camera
-        return ((-1 * b) - sqrt(discriminant)) / (2.0 * a);
+        // Find intersection points
+        float t1 = (-b - sqrt(discriminant)) / (2.0 * a);
+        float t2 = (-b + sqrt(discriminant)) / (2.0 * a);
+
+        // If both points are negative return -1 to indicate no intersection
+        if(t1 < 0.0 && t2 < 0.0){
+            return -1;
+        }
+        // If either point is negative return the other
+        else if(t1 < 0.0){
+            return t2;
+        }
+        else if(t2 < 0.0){
+            return t1;
+        }
+        // Otherwise return the closest intersection point
+        else{
+            return min(t1, t2);
+        }
+
     }
 }
 
@@ -118,7 +140,7 @@ float4 CastRay(uint x, uint y){
 
     float3 closestPoint;
     // Start with an arbitrary high number of a stand in for infinity
-    float closestPointDist = 10000;
+    float closestPointDist = 100000;
     // Index in the buffer of sphere intersected with 
     uint closestPointObjIndex = 0;
 
@@ -130,8 +152,8 @@ float4 CastRay(uint x, uint y){
         // Get (closest) point along r it intersects with s
         float t = FindIntersectionPoint(r, s);
 
-        // If t < 0  move on because r either doesn't intersect s at all or if intersects it behind the camera
-        if(t > 0){
+        // If t < 0  move on because that indicates no intersection
+        if(t >= 0){
             // If t is less than the currently saved distance save this intersection as the new closest
             if(t < closestPointDist){
                 // Set to  point corresponding to t distance along r
@@ -145,7 +167,7 @@ float4 CastRay(uint x, uint y){
     // If a point was found return its material color scaled by the distance
     // TODO: Add more complex materials and lighting calculation
     // If no intersection was found return background color
-    if(closestPointDist == 10000){
+    if(closestPointDist == 100000){
         return backgroundColor;
     }
     else{

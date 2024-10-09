@@ -17,9 +17,6 @@ public class SimpleRaytracer : MonoBehaviour
 
     public ComputeBuffer oBuffer;
 
-    public int ScreenWidth = 1920;
-    public int ScreenHeight = 1080;
-
     // Texture to apply to camera
     private RenderTexture _tex;
 
@@ -54,7 +51,7 @@ public class SimpleRaytracer : MonoBehaviour
             GameObject rObj = _raytracingObjects[i];
             TSphere s = new TSphere();
             s.center = rObj.transform.position;
-            s.radius = 0.25f;
+            s.radius = rObj.transform.localScale.x;
             s.matColor = rObj.GetComponent<MeshRenderer>().material.color;
             spheres[i] = s;
         }
@@ -78,9 +75,9 @@ public class SimpleRaytracer : MonoBehaviour
         Raytracer.SetInt("screenWidthPixels", Screen.width);
         Raytracer.SetInt("screenHeightPixels", Screen.height);
         // Calculate the size of the camera in world coordiantes
-        float aspect = ((float)Screen.width) / Screen.height;
-        float worldHeight = 3;
-        Raytracer.SetFloat("screenWidthCoords", worldHeight * (((float) Screen.width) / Screen.height));
+        float aspect = ((float) Screen.width) / ((float) Screen.height);
+        float worldHeight = 10;
+        Raytracer.SetFloat("screenWidthCoords", worldHeight * aspect);
         Raytracer.SetFloat("screenHeightCoords", worldHeight);
 
         // Set buffer data
