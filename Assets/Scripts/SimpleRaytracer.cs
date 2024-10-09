@@ -76,7 +76,7 @@ public class SimpleRaytracer : MonoBehaviour
         Raytracer.SetInt("screenHeightPixels", Screen.height);
         // Calculate the size of the camera in world coordiantes
         float aspect = ((float) Screen.width) / ((float) Screen.height);
-        float worldHeight = 10;
+        float worldHeight = 3;
         Raytracer.SetFloat("screenWidthCoords", worldHeight * aspect);
         Raytracer.SetFloat("screenHeightCoords", worldHeight);
 

@@ -173,7 +173,7 @@ float4 CastRay(uint x, uint y){
     else{
         //TODO: Look into changing this from using an arbitrary value to emulating the inverse square law
         // Get the distance between intersection point and the camera
-        float distMod = closestPointDist / 100;
+        float distMod = closestPointDist / 10;
         // Subtract the dist mode from the material color of the intersected object
         float4 baseColor = Objects[closestPointObjIndex].matColor;
         // TODO: Don't hardcode once/if see through materials are introduced
