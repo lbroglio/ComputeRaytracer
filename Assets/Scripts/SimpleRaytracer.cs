@@ -15,13 +15,27 @@ public class SimpleRaytracer : MonoBehaviour
 
     public ComputeShader Raytracer;
 
+    // Compute buffers
     public ComputeBuffer oBuffer;
+    public ComputeBuffer rBuffer;
+
+    // Array to hold random numbers 
 
     // Texture to apply to camera
     private RenderTexture _tex;
 
     // List which holds all the objects in the scene to be considered when raytracing
     private List<GameObject> _raytracingObjects;
+
+
+    // The number of samples to take off every pixel for the purposes of anti aliasing
+    public int numSamples = 4;
+
+    // Globals used for creating the texture / running the shader
+    private float aspect;
+    private float worldHeight;
+    private float worldWidth;
+
     // Start is called before the first frame update
     void Start()
     {
@@ -29,9 +43,35 @@ public class SimpleRaytracer : MonoBehaviour
         _raytracingObjects = new List<GameObject>();
         _raytracingObjects.AddRange(GameObject.FindGameObjectsWithTag("RaytracingComponent"));
 
-        // Setup compute buffer
+        // Setup compute buffers
         int typeSize = (sizeof(float) * 3) + sizeof(float) + (sizeof(float) * 4);
         oBuffer = new ComputeBuffer(_raytracingObjects.Count, typeSize);
+        typeSize = (sizeof(float) * 2);
+        rBuffer = new ComputeBuffer(Screen.width * Screen.height * numSamples, typeSize);
+
+        //Calculate the size of the camera in world coordinates
+        aspect = ((float) Screen.width) / ((float) Screen.height);
+        worldHeight = 1;
+        worldWidth = worldHeight * aspect;
+        float pixShiftX = worldWidth / Screen.width;
+        float pixShiftY = (worldWidth / Screen.height) / aspect;
+
+        float halfPixX = pixShiftX / 2;
+        float halfPixY = pixShiftY / 2;
+
+        // Setup random numbers to be used by the shader
+        Vector2[] randNums = new Vector2[Screen.width * Screen.height * numSamples];
+        for(int i = 0; i < Screen.width * Screen.height * numSamples; i++){
+            // Generate random numbers
+            float xOffset = Random.Range(halfPixX * -1, halfPixX);
+            float yOffset = Random.Range(halfPixY * -1, halfPixY);
+
+            // Create vector containing random offsets and add it to array
+            randNums[i] = new Vector2(xOffset, yOffset);
+            //Debug.Log(randNums[i]);
+        }
+        rBuffer.SetData(randNums);
+
     }
 
     // Update is called once per frame
@@ -42,7 +82,7 @@ public class SimpleRaytracer : MonoBehaviour
 
     private void OnRenderImage(RenderTexture source, RenderTexture destination)
     {
-
+        
         // Get the texture for this frame by running raytracer compute shader   
 
         // Convert Raytrace tagged GameObjects into sphere structs
@@ -55,6 +95,8 @@ public class SimpleRaytracer : MonoBehaviour
             s.matColor = rObj.GetComponent<MeshRenderer>().material.color;
             spheres[i] = s;
         }
+
+
 
         // Create the texture to apply if it doesn't exist
         if( _tex == null)
@@ -74,15 +116,15 @@ public class SimpleRaytracer : MonoBehaviour
         Raytracer.SetInt("numObjects", spheres.Length);
         Raytracer.SetInt("screenWidthPixels", Screen.width);
         Raytracer.SetInt("screenHeightPixels", Screen.height);
-        // Calculate the size of the camera in world coordiantes
-        float aspect = ((float) Screen.width) / ((float) Screen.height);
-        float worldHeight = 3;
-        Raytracer.SetFloat("screenWidthCoords", worldHeight * aspect);
+        Raytracer.SetFloat("screenWidthCoords", worldWidth);
         Raytracer.SetFloat("screenHeightCoords", worldHeight);
+        Raytracer.SetInt("numSamples", numSamples);
+
 
         // Set buffer data
         oBuffer.SetData(spheres);
         Raytracer.SetBuffer(kernel, "Objects", oBuffer);
+        Raytracer.SetBuffer(kernel, "RandomNums", rBuffer);
 
         // Dispatch shader
         int workgroupsX = Mathf.CeilToInt(Screen.width / 8.0f);
@@ -96,5 +138,6 @@ public class SimpleRaytracer : MonoBehaviour
 
     void OnDestroy(){
         oBuffer.Release();
+        rBuffer.Release();
     }
 }

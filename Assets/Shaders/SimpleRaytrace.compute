@@ -29,6 +29,9 @@ RWTexture2D<float4> Result;
 // Buffer to fill with the objects in the world
 StructuredBuffer<Sphere> Objects;
 
+// Buffer to fill with the random numbers to be used in execution
+StructuredBuffer<float2> RandomNums;
+
 // Number of object in the world (size of _objects)
 uint numObjects;
 
@@ -41,6 +44,9 @@ float screenWidthCoords;
 // The height of the screen in world coordinates
 float screenHeightCoords;
 
+// Number of samples to take within each pixel (Number of rays to cast for each pixel)
+uint numSamples;
+
 // Value used to calculate how colors darken when they are farther away from the camera. 
 // Currently arbitrary and best set using trial and error
 uint darkenScaleVal = 6;
@@ -51,7 +57,9 @@ float Dist3D(float3 a, float3 b){
 }
 
 // Create a ray which shoots through the pixel with the given x and y location on the screen
-Ray CreateRayFromPixelLoc(uint x, uint y){
+// Also takes in a random offset from the center of the pixel so a random location within the pixel 
+//can be sampled; this is used for anti-aliasing. 
+Ray CreateRayFromPixelLoc(uint x, uint y, float xOffset, float yOffset){
     // Calculate the size of a pixel in world coords
     float pixelSize = screenWidthCoords / screenWidthPixels;  
 
@@ -67,10 +75,10 @@ Ray CreateRayFromPixelLoc(uint x, uint y){
         worldUpperLeft.y - (0.5 * pixShiftY), 
         worldUpperLeft.z);
     
-    // Get the location of this pixel
+    // Get the location of a point within this pixel to sample
     float3 pixelWordPos = float3(
-        firstPixelLoc.x + (x * pixShiftX), 
-        firstPixelLoc.y - (y * pixShiftY), 
+        firstPixelLoc.x + (x * pixShiftX) + xOffset, 
+        firstPixelLoc.y - (y * pixShiftY) + yOffset, 
         camLoc.z + 1.0);
 
     // Create the direction vector
@@ -134,10 +142,7 @@ float FindIntersectionPoint(Ray r, Sphere s){
 }
 
 // Find the color a given pixel should be by casting a ray into the scene
-float4 CastRay(uint x, uint y){
-    // Create the ray 
-    Ray r = CreateRayFromPixelLoc(x, y);
-
+float4 CastRay(Ray r){
     float3 closestPoint;
     // Start with an arbitrary high number of a stand in for infinity
     float closestPointDist = 100000;
@@ -173,7 +178,7 @@ float4 CastRay(uint x, uint y){
     else{
         //TODO: Look into changing this from using an arbitrary value to emulating the inverse square law
         // Get the distance between intersection point and the camera
-        float distMod = closestPointDist / 10;
+        float distMod = closestPointDist / 15;
         // Subtract the dist mode from the material color of the intersected object
         float4 baseColor = Objects[closestPointObjIndex].matColor;
         // TODO: Don't hardcode once/if see through materials are introduced
@@ -188,8 +193,27 @@ float4 CastRay(uint x, uint y){
 [numthreads(8,8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
-    // Get color to make this pixel using a raycast
-    float4 pixelCol = CastRay(id.x, id.y);
+    // Get the colors to make this pixel using a raycast
+    float4 finalPixelColor = float4(0, 0, 0, 0);
 
-    Result[id.xy] = pixelCol;
+    // Take all the samples 
+    for(uint i =0; i < numSamples; i++){
+        // Get random offset passed from CPU
+        float2 randOffset = RandomNums[(id.y * screenWidthPixels) + id.x + i];
+
+        // Create the ray 
+        Ray r = CreateRayFromPixelLoc(id.x, id.y, randOffset.x, randOffset.y);
+        
+        // Cast the ray and get a color in return
+        float4 pixelCol = CastRay(r);
+
+        // Add sampled color to the final color
+        finalPixelColor = finalPixelColor + pixelCol;
+    }
+
+    // Divide the final color to average it
+    finalPixelColor /= numSamples;
+
+
+    Result[id.xy] = finalPixelColor;
 }
