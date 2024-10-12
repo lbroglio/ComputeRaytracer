@@ -322,6 +322,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   Raytracer: {fileID: 7200000, guid: 4fbb119c00a53488dbba14574c87b19a, type: 3}
+  NumSamples: 4
+  WorldHeight: 0
 --- !u!1 &974899569
 GameObject:
   m_ObjectHideFlags: 0
@@ -334,6 +336,7 @@ GameObject:
   - component: {fileID: 974899572}
   - component: {fileID: 974899571}
   - component: {fileID: 974899570}
+  - component: {fileID: 974899574}
   m_Layer: 0
   m_Name: Sphere
   m_TagString: RaytracingComponent
@@ -427,6 +430,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &974899574
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 974899569}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e20322a7d71674bf2acb1cfc6656f525, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  xSpeed: 0.002
+  ySpeed: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

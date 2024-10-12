@@ -29,11 +29,11 @@ public class SimpleRaytracer : MonoBehaviour
 
 
     // The number of samples to take off every pixel for the purposes of anti aliasing
-    public int numSamples = 4;
+    public int NumSamples = 4;
 
     // Globals used for creating the texture / running the shader
     private float aspect;
-    private float worldHeight;
+    public float WorldHeight;
     private float worldWidth;
 
     // Start is called before the first frame update
@@ -47,12 +47,12 @@ public class SimpleRaytracer : MonoBehaviour
         int typeSize = (sizeof(float) * 3) + sizeof(float) + (sizeof(float) * 4);
         oBuffer = new ComputeBuffer(_raytracingObjects.Count, typeSize);
         typeSize = (sizeof(float) * 2);
-        rBuffer = new ComputeBuffer(Screen.width * Screen.height * numSamples, typeSize);
+        rBuffer = new ComputeBuffer(Screen.width * Screen.height * NumSamples, typeSize);
 
         //Calculate the size of the camera in world coordinates
         aspect = ((float) Screen.width) / ((float) Screen.height);
-        worldHeight = 1;
-        worldWidth = worldHeight * aspect;
+        WorldHeight = 1;
+        worldWidth = WorldHeight * aspect;
         float pixShiftX = worldWidth / Screen.width;
         float pixShiftY = (worldWidth / Screen.height) / aspect;
 
@@ -60,8 +60,8 @@ public class SimpleRaytracer : MonoBehaviour
         float halfPixY = pixShiftY / 2;
 
         // Setup random numbers to be used by the shader
-        Vector2[] randNums = new Vector2[Screen.width * Screen.height * numSamples];
-        for(int i = 0; i < Screen.width * Screen.height * numSamples; i++){
+        Vector2[] randNums = new Vector2[Screen.width * Screen.height * NumSamples];
+        for(int i = 0; i < Screen.width * Screen.height * NumSamples; i++){
             // Generate random numbers
             float xOffset = Random.Range(halfPixX * -1, halfPixX);
             float yOffset = Random.Range(halfPixY * -1, halfPixY);
@@ -117,8 +117,8 @@ public class SimpleRaytracer : MonoBehaviour
         Raytracer.SetInt("screenWidthPixels", Screen.width);
         Raytracer.SetInt("screenHeightPixels", Screen.height);
         Raytracer.SetFloat("screenWidthCoords", worldWidth);
-        Raytracer.SetFloat("screenHeightCoords", worldHeight);
-        Raytracer.SetInt("numSamples", numSamples);
+        Raytracer.SetFloat("screenHeightCoords", WorldHeight);
+        Raytracer.SetInt("numSamples", NumSamples);
 
 
         // Set buffer data
