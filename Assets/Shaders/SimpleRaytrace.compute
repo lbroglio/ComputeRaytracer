@@ -5,7 +5,7 @@
 struct Sphere{
     float3 centerCoords;
     float radius;
-    float4 matColor;
+    float4 diffuseColor;
 
     // TODO: Add more material properties
 };
@@ -14,6 +14,15 @@ struct Sphere{
 struct Ray{
     float3 origin;
     float3 direction;
+};
+
+/* Structure which stores the result of a raycast.
+* Holds a int which marks if an object was hit (o for false, 1 for true),
+* the intersectionPoint, and what object was intersected */
+struct RaycastHit{
+    int hitOccured;
+    float3 intersectionPoint;
+    Sphere intersected;
 };
 
 // Color to make pixels which don't intersect with any objects
@@ -47,13 +56,27 @@ float screenHeightCoords;
 // Number of samples to take within each pixel (Number of rays to cast for each pixel)
 uint numSamples;
 
-// Value used to calculate how colors darken when they are farther away from the camera. 
-// Currently arbitrary and best set using trial and error
-uint darkenScaleVal = 6;
+// Position of the primary light (sun) for this scene
+float3 lightPos;
+
 
 // Calculate the distance between points a and b in 3D space
 float Dist3D(float3 a, float3 b){
     return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2) + pow(a.z - b.z, 2));
+}
+
+
+// Create a Ray struct from the origing and target points 
+Ray CreateRay(float3 origin, float3 target){
+    // Create the direction vector
+    float3 direction = normalize(target - origin);
+
+    // Create ray structure to return 
+    Ray retVal;
+    retVal.origin = origin;
+    retVal.direction = direction;
+
+    return retVal;
 }
 
 // Create a ray which shoots through the pixel with the given x and y location on the screen
@@ -81,13 +104,7 @@ Ray CreateRayFromPixelLoc(uint x, uint y, float xOffset, float yOffset){
         firstPixelLoc.y - (y * pixShiftY) + yOffset, 
         camLoc.z + 1.0);
 
-    // Create the direction vector
-    float3 direction = normalize(pixelWordPos - camLoc);
-
-    // Create ray structure to return 
-    Ray retVal;
-    retVal.origin = float3(camLoc.x, camLoc.y, camLoc.z);
-    retVal.direction = direction;
+    Ray retVal = CreateRay(camLoc, pixelWordPos);
 
     return retVal;
 }
@@ -142,7 +159,7 @@ float FindIntersectionPoint(Ray r, Sphere s){
 }
 
 // Find the color a given pixel should be by casting a ray into the scene
-float4 CastRay(Ray r){
+RaycastHit CastRay(Ray r){
     float3 closestPoint;
     // Start with an arbitrary high number of a stand in for infinity
     float closestPointDist = 100000;
@@ -169,24 +186,61 @@ float4 CastRay(Ray r){
         }
     }
 
-    // If a point was found return its material color scaled by the distance
-    // TODO: Add more complex materials and lighting calculation
-    // If no intersection was found return background color
+    // Create RaycastHit struct based on chosen intersection point (or none)
+    RaycastHit rh;
     if(closestPointDist == 100000){
-        return backgroundColor;
+        rh.hitOccured = 0;
+        rh.intersectionPoint = camLoc;
+        rh.intersected = Objects[0];
     }
     else{
-        //TODO: Look into changing this from using an arbitrary value to emulating the inverse square law
-        // Get the distance between intersection point and the camera
-        float distMod = closestPointDist / 15;
-        // Subtract the dist mode from the material color of the intersected object
-        float4 baseColor = Objects[closestPointObjIndex].matColor;
-        // TODO: Don't hardcode once/if see through materials are introduced
-        float4 changedColor = float4(max(baseColor.x - distMod, 0), max(baseColor.y - distMod, 0), max(baseColor.z - distMod, 0), 1);
-
-        return changedColor;
+        rh.hitOccured = 1;
+        rh.intersectionPoint = closestPoint;
+        rh.intersected = Objects[closestPointObjIndex];
     }
+
+    return rh;
     
+}
+
+// Calculate the color a pixel should be based on its ray and that rays closest intersection with an object in the screen
+// (or lack thereof)
+float4 CalculateColorVal(Ray r, RaycastHit hit){
+    // If no hit occured return background color
+    if(hit.hitOccured == 0){
+        return backgroundColor;
+    }
+     // TODO: Add more complex materials and lighting calculation
+    // Otherwise calculate the lighting value
+    else{
+        // Calculate distance between camera and intersection point
+        float dist = Dist3D(r.origin, hit.intersectionPoint);
+
+        // Get base color
+        float4 baseColor = hit.intersected.diffuseColor;
+
+        // Check if this point is shadowed
+        // Move the origin point slightly to prevent intersection at the same point again
+        float3 tst = hit.intersectionPoint + (-0.001 * r.direction);
+        Ray shadowRay = CreateRay(tst, lightPos);
+        RaycastHit shaodowRaycast = CastRay(shadowRay);
+
+        // If this point is shadowed
+        if(shaodowRaycast.hitOccured != 0){
+            // Darken it by 40%
+            return baseColor * .6;
+        }
+        // If this point isn't shadowed
+        else{
+            // TODO: Calculate specular lighting and reflection
+            
+            // TODO: Don't hardcode the numerator (light strength)
+            float intensity = 12 / pow(dist, 2);
+            // Return baseColor scaled by intensity
+            return baseColor * intensity;
+        }
+
+    }
 }
 
 
@@ -204,8 +258,11 @@ void CSMain (uint3 id : SV_DispatchThreadID)
         // Create the ray 
         Ray r = CreateRayFromPixelLoc(id.x, id.y, randOffset.x, randOffset.y);
         
-        // Cast the ray and get a color in return
-        float4 pixelCol = CastRay(r);
+        // Cast the ray into the scene
+        RaycastHit raycast = CastRay(r);
+
+        // Calculate color sample
+        float4 pixelCol = CalculateColorVal(r, raycast);
 
         // Add sampled color to the final color
         finalPixelColor = finalPixelColor + pixelCol;

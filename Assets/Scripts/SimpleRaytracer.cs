@@ -10,7 +10,8 @@ public class SimpleRaytracer : MonoBehaviour
     {
         public Vector3 center;
         public float radius;
-        public Vector4 matColor;
+        public Vector4 diffuseColor;
+
     }
 
     public ComputeShader Raytracer;
@@ -92,7 +93,8 @@ public class SimpleRaytracer : MonoBehaviour
             TSphere s = new TSphere();
             s.center = rObj.transform.position;
             s.radius = rObj.transform.localScale.x;
-            s.matColor = rObj.GetComponent<MeshRenderer>().material.color;
+            s.diffuseColor = rObj.GetComponent<MeshRenderer>().material.color;
+
             spheres[i] = s;
         }
 
@@ -119,6 +121,10 @@ public class SimpleRaytracer : MonoBehaviour
         Raytracer.SetFloat("screenWidthCoords", worldWidth);
         Raytracer.SetFloat("screenHeightCoords", WorldHeight);
         Raytracer.SetInt("numSamples", NumSamples);
+
+        // Setup the light
+        GameObject light = GameObject.Find("RaytracingLight");
+        Raytracer.SetVector("lightPos", light.transform.position);
 
 
         // Set buffer data
