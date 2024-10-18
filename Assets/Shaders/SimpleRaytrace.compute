@@ -221,25 +221,35 @@ float4 CalculateColorVal(Ray r, RaycastHit hit){
 
         // Check if this point is shadowed
         // Move the origin point slightly to prevent intersection at the same point again
-        float3 tst = hit.intersectionPoint + (-0.001 * r.direction);
-        Ray shadowRay = CreateRay(tst, lightPos);
+        float3 offSetRay = hit.intersectionPoint + (-0.001 * r.direction);
+        Ray shadowRay = CreateRay(offSetRay, lightPos);
         RaycastHit shaodowRaycast = CastRay(shadowRay);
 
         // If this point is shadowed
+        float shadowCoefficient = 1;
         if(shaodowRaycast.hitOccured != 0){
-            // Darken it by 40%
-            return baseColor * .6;
-        }
-        // If this point isn't shadowed
-        else{
-            // TODO: Calculate specular lighting and reflection
-            
-            // TODO: Don't hardcode the numerator (light strength)
-            float intensity = 12 / pow(dist, 2);
-            // Return baseColor scaled by intensity
-            return baseColor * intensity;
+            // Darken it by a specific percentage
+            shadowCoefficient = 0.8;
         }
 
+        // TODO: Calculate specular lighting and reflection
+            
+        // TODO: Don't hardcode the numerator (light strength)
+
+        // Calculate intensity
+        float intensity = 12 / pow(dist, 2);
+
+        // Calculate normal vector for the intersection point
+        float3 normalVec = hit.intersectionPoint - hit.intersected.centerCoords;
+        normalVec = normalize(normalVec);
+
+        // Calculate diffuse coefficient
+        float kd = max(0.0, dot(normalVec, shadowRay.direction));
+
+        // Calculate diffuse color
+        float4 diffuseColor = kd * hit.intersected.diffuseColor;
+
+        return diffuseColor * intensity * shadowCoefficient;
     }
 }
 
