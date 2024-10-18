@@ -6,6 +6,7 @@ struct Sphere{
     float3 centerCoords;
     float radius;
     float4 diffuseColor;
+    float4 specColor;
 
     // TODO: Add more material properties
 };
@@ -223,11 +224,11 @@ float4 CalculateColorVal(Ray r, RaycastHit hit){
         // Move the origin point slightly to prevent intersection at the same point again
         float3 offSetRay = hit.intersectionPoint + (-0.001 * r.direction);
         Ray shadowRay = CreateRay(offSetRay, lightPos);
-        RaycastHit shaodowRaycast = CastRay(shadowRay);
+        RaycastHit shadowRaycast = CastRay(shadowRay);
 
         // If this point is shadowed
         float shadowCoefficient = 1;
-        if(shaodowRaycast.hitOccured != 0){
+        if(shadowRaycast.hitOccured != 0){
             // Darken it by a specific percentage
             shadowCoefficient = 0.8;
         }
@@ -243,13 +244,22 @@ float4 CalculateColorVal(Ray r, RaycastHit hit){
         float3 normalVec = hit.intersectionPoint - hit.intersected.centerCoords;
         normalVec = normalize(normalVec);
 
+        // Calculate reflection vector
+        float3 lightReflectionVector = -1 * shadowRay.direction - (2 * (-1 * shadowRay.direction * normalVec) * normalVec);
+
         // Calculate diffuse coefficient
         float kd = max(0.0, dot(normalVec, shadowRay.direction));
+
+        // Calculate specular coefficient
+        float ks = pow(max(dot(shadowRay.direction, lightReflectionVector), 0.0), 6.0);
 
         // Calculate diffuse color
         float4 diffuseColor = kd * hit.intersected.diffuseColor;
 
-        return diffuseColor * intensity * shadowCoefficient;
+        // Calculate specular color
+        float4 specColor = ks * hit.intersected.specColor;
+
+        return (diffuseColor + specColor) * intensity * shadowCoefficient;
     }
 }
 

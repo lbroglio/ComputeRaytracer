@@ -11,6 +11,7 @@ public class SimpleRaytracer : MonoBehaviour
         public Vector3 center;
         public float radius;
         public Vector4 diffuseColor;
+        public Vector4 specColor;
 
     }
 
@@ -45,7 +46,7 @@ public class SimpleRaytracer : MonoBehaviour
         _raytracingObjects.AddRange(GameObject.FindGameObjectsWithTag("RaytracingComponent"));
 
         // Setup compute buffers
-        int typeSize = (sizeof(float) * 3) + sizeof(float) + (sizeof(float) * 4);
+        int typeSize = (sizeof(float) * 3) + sizeof(float) + (sizeof(float) * 4) + (sizeof(float) * 4);
         oBuffer = new ComputeBuffer(_raytracingObjects.Count, typeSize);
         typeSize = (sizeof(float) * 2);
         rBuffer = new ComputeBuffer(Screen.width * Screen.height * NumSamples, typeSize);
@@ -94,6 +95,7 @@ public class SimpleRaytracer : MonoBehaviour
             s.center = rObj.transform.position;
             s.radius = rObj.transform.localScale.x;
             s.diffuseColor = rObj.GetComponent<MeshRenderer>().material.color;
+            s.specColor = new Vector4(1, 1, 1, 1);
 
             spheres[i] = s;
         }
