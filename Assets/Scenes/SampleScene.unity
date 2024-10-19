@@ -503,7 +503,7 @@ GameObject:
   - component: {fileID: 1302385079}
   m_Layer: 0
   m_Name: Sphere
-  m_TagString: RaytracingComponent
+  m_TagString: ReflectiveRaytracingComponent
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0

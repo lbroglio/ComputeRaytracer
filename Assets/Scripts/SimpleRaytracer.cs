@@ -12,6 +12,8 @@ public class SimpleRaytracer : MonoBehaviour
         public float radius;
         public Vector4 diffuseColor;
         public Vector4 specColor;
+        // 0 = not reflective, 1 = is reflective
+        public int isReflective;
 
     }
 
@@ -44,9 +46,10 @@ public class SimpleRaytracer : MonoBehaviour
         // Add all objects with the Raytracing component tag to a list
         _raytracingObjects = new List<GameObject>();
         _raytracingObjects.AddRange(GameObject.FindGameObjectsWithTag("RaytracingComponent"));
+        _raytracingObjects.AddRange(GameObject.FindGameObjectsWithTag("ReflectiveRaytracingComponent"));
 
         // Setup compute buffers
-        int typeSize = (sizeof(float) * 3) + sizeof(float) + (sizeof(float) * 4) + (sizeof(float) * 4);
+        int typeSize = (sizeof(float) * 3) + sizeof(float) + (sizeof(float) * 4) + (sizeof(float) * 4) + sizeof(int);
         oBuffer = new ComputeBuffer(_raytracingObjects.Count, typeSize);
         typeSize = (sizeof(float) * 2);
         rBuffer = new ComputeBuffer(Screen.width * Screen.height * NumSamples, typeSize);
@@ -96,6 +99,7 @@ public class SimpleRaytracer : MonoBehaviour
             s.radius = rObj.transform.localScale.x;
             s.diffuseColor = rObj.GetComponent<MeshRenderer>().material.color;
             s.specColor = new Vector4(1, 1, 1, 1);
+            s.isReflective = rObj.CompareTag("ReflectiveRaytracingComponent") ? 1 : 0;
 
             spheres[i] = s;
         }

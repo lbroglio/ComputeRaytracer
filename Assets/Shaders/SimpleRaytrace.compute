@@ -7,6 +7,8 @@ struct Sphere{
     float radius;
     float4 diffuseColor;
     float4 specColor;
+    // 0 = not reflective, 1 = is reflective
+    int isReflective;
 
     // TODO: Add more material properties
 };
@@ -245,21 +247,47 @@ float4 CalculateColorVal(Ray r, RaycastHit hit){
         normalVec = normalize(normalVec);
 
         // Calculate reflection vector
-        float3 lightReflectionVector = -1 * shadowRay.direction - (2 * (-1 * shadowRay.direction * normalVec) * normalVec);
+        Ray lightToPoint = CreateRay(lightPos, hit.intersectionPoint);
+        float3 lightReflectionVector = lightToPoint.direction - (2 * (lightToPoint.direction * normalVec) * normalVec);
 
         // Calculate diffuse coefficient
         float kd = max(0.0, dot(normalVec, shadowRay.direction));
 
         // Calculate specular coefficient
-        float ks = pow(max(dot(shadowRay.direction, lightReflectionVector), 0.0), 6.0);
+        //float ks = pow(max(dot(shadowRay.direction, lightReflectionVector), 0.0), 8.0);
 
         // Calculate diffuse color
         float4 diffuseColor = kd * hit.intersected.diffuseColor;
 
         // Calculate specular color
-        float4 specColor = ks * hit.intersected.specColor;
+        //float4 specColor = ks * hit.intersected.specColor;
 
-        return (diffuseColor + specColor) * intensity * shadowCoefficient;
+        // If the being surface is reflective and not shadowed check if a reflection is being cast on it
+        if(hit.intersected.isReflective == 1 && shadowCoefficient == 1){
+            // Setup reflection ray
+            float3 reflectionVector = r.direction - (2 * (r.direction * normalVec) * normalVec);
+            Ray reflectionRay;
+            reflectionRay.origin = hit.intersectionPoint;
+            reflectionRay.direction = reflectionVector;
+
+            // Cast reflection ray
+            RaycastHit reflectionHit = CastRay(reflectionRay);
+            
+            // If the reflection ray intersected anything
+            if(reflectionHit.hitOccured == 1){
+                // Check if the hit surface is shadowed 
+                RaycastHit reflectedShadowHit = CastRay(CreateRay(reflectionHit.intersectionPoint, lightPos));
+
+                if(reflectedShadowHit.hitOccured == 0){
+                    // Sample surface intersected by reflection ray
+                    return (0.1 * (diffuseColor) * intensity) + (0.9 * reflectionHit.intersected.diffuseColor);
+                }
+            }
+        }
+
+        // Otherwise calculate without casting reflection rays
+        return (diffuseColor) * intensity * shadowCoefficient;
+
     }
 }
 
