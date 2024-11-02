@@ -1,16 +1,23 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
 
+// Struct which represents a material 
+struct Material{
+    /* Type Mapping
+    * 0 = Lambertian
+    * 1 = Glossy
+    */
+    uint type;
+    float4 baseColor;
+    float attenuation;
+    // TODO: Add more material properties
+};
+
 // Struct which represents a sphere in the scene
 struct Sphere{
     float3 centerCoords;
     float radius;
-    float4 diffuseColor;
-    float4 specColor;
-    // 0 = not reflective, 1 = is reflective
-    int isReflective;
-
-    // TODO: Add more material properties
+    Material m;
 };
 
 // Struct which represents a Ray cast in the screen
@@ -61,6 +68,7 @@ uint numSamples;
 
 // Position of the primary light (sun) for this scene
 float3 lightPos;
+
 
 
 // Compare two floats by determing if they are less than a given distance apart
@@ -239,9 +247,6 @@ float4 CalculateColorVal(Ray r, RaycastHit hit){
         // Calculate distance between camera and intersection point
         float dist = Dist3D(r.origin, hit.intersectionPoint);
 
-        // Get base color
-        float4 baseColor = hit.intersected.diffuseColor;
-
         // Check if this point is shadowed
         // Move the origin point slightly to prevent intersection at the same point again
         float3 offSetRay = hit.intersectionPoint + (-0.001 * r.direction);
@@ -257,11 +262,6 @@ float4 CalculateColorVal(Ray r, RaycastHit hit){
 
         // TODO: Calculate specular lighting and reflection
             
-        // TODO: Don't hardcode the numerator (light strength)
-
-        // Calculate intensity
-        float intensity = 24 / pow(dist, 2);
-
         // Calculate normal vector for the intersection point
         float3 normalVec = hit.intersectionPoint - hit.intersected.centerCoords;
         normalVec = normalize(normalVec);
@@ -277,13 +277,13 @@ float4 CalculateColorVal(Ray r, RaycastHit hit){
         //float ks = pow(max(dot(shadowRay.direction, lightReflectionVector), 0.0), 8.0);
 
         // Calculate diffuse color
-        float4 diffuseColor = kd * hit.intersected.diffuseColor;
+        float4 diffuseColor = kd * hit.intersected.m.baseColor;
 
         // Calculate specular color
         //float4 specColor = ks * hit.intersected.specColor;
 
         // If the being surface is reflective and not shadowed check if a reflection is being cast on it
-        if(hit.intersected.isReflective == 1 && shadowCoefficient == 1){
+        if(hit.intersected.m.type == 1 && shadowCoefficient == 1){
             // Setup reflection ray
             float3 reflectionVector = r.direction - (2 * (r.direction * normalVec) * normalVec);
             Ray reflectionRay;
@@ -296,18 +296,13 @@ float4 CalculateColorVal(Ray r, RaycastHit hit){
             // If the reflection ray intersected anything other than itself
             if(reflectionHit.hitOccured == 1 
                 && !Float3Compare(reflectionHit.intersected.centerCoords, hit.intersected.centerCoords, 0.001)){
-                // Check if the hit surface is shadowed 
-                RaycastHit reflectedShadowHit = CastRay(CreateRay(reflectionHit.intersectionPoint, lightPos));
-
-                if(reflectedShadowHit.hitOccured == 0){
-                    // Sample surface intersected by reflection ray
-                    return (0.1 * (diffuseColor) * intensity) + (0.9 * reflectionHit.intersected.diffuseColor);
-                }
+                // Sample surface intersected by reflection ray
+                return (0.1 * (diffuseColor)) + (0.9 * reflectionHit.intersected.m.baseColor);
             }
         }
 
         // Otherwise calculate without casting reflection rays
-        return (diffuseColor) * intensity * shadowCoefficient;
+        return diffuseColor * shadowCoefficient;
 
     }
 }

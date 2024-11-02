@@ -147,7 +147,7 @@ Transform:
   m_GameObject: {fileID: 666236556}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1, y: 0, z: 0}
+  m_LocalPosition: {x: 1, y: -10, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -261,9 +261,10 @@ GameObject:
   - component: {fileID: 854934830}
   - component: {fileID: 854934829}
   - component: {fileID: 854934834}
+  - component: {fileID: 854934835}
   m_Layer: 0
   m_Name: Sphere (1)
-  m_TagString: RaytracingComponent
+  m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -380,6 +381,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1d393731aeac6472795b0cd17f5bceca, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &854934835
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 854934828}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ca6c07dd5a35842fbb0be1286e0bd504, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  MaterialType: 0
+  BaseColor: {x: 0, y: 0, z: 0, w: 0}
+  Attenuation: 0.1
 --- !u!1 &963194225
 GameObject:
   m_ObjectHideFlags: 0
@@ -501,9 +517,10 @@ GameObject:
   - component: {fileID: 1302385081}
   - component: {fileID: 1302385080}
   - component: {fileID: 1302385079}
+  - component: {fileID: 1302385084}
   m_Layer: 0
   m_Name: Sphere
-  m_TagString: ReflectiveRaytracingComponent
+  m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -563,7 +580,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 9bf161fbc8ea646169e70da52fc7fda6, type: 2}
+  - {fileID: 2100000, guid: 4e2b92247488c479db629f4e1578a09e, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -608,6 +625,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1302385084
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1302385078}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ca6c07dd5a35842fbb0be1286e0bd504, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  MaterialType: 1
+  BaseColor: {x: 0, y: 0, z: 0, w: 0}
+  Attenuation: 0.1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

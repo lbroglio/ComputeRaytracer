@@ -10,12 +10,21 @@ public class SimpleRaytracer : MonoBehaviour
     {
         public Vector3 center;
         public float radius;
-        public Vector4 diffuseColor;
-        public Vector4 specColor;
-        // 0 = not reflective, 1 = is reflective
-        public int isReflective;
+        public TMaterial m;
 
     }
+
+    // Struct which represents a material 
+    public struct TMaterial{
+        /* Type Mapping
+        * 0 = Lambertian
+        * 1 = Glossy
+        */
+        public uint type;
+        public Vector4 baseColor;
+        public float attenuation;
+        // TODO: Add more material properties
+    };
 
     public ComputeShader Raytracer;
 
@@ -29,7 +38,7 @@ public class SimpleRaytracer : MonoBehaviour
     private RenderTexture _tex;
 
     // List which holds all the objects in the scene to be considered when raytracing
-    private List<GameObject> _raytracingObjects;
+    private List<RaytracingObject> _raytracingObjects;
 
 
     // The number of samples to take off every pixel for the purposes of anti aliasing
@@ -44,12 +53,13 @@ public class SimpleRaytracer : MonoBehaviour
     void Start()
     {
         // Add all objects with the Raytracing component tag to a list
-        _raytracingObjects = new List<GameObject>();
-        _raytracingObjects.AddRange(GameObject.FindGameObjectsWithTag("RaytracingComponent"));
-        _raytracingObjects.AddRange(GameObject.FindGameObjectsWithTag("ReflectiveRaytracingComponent"));
+        _raytracingObjects = new List<RaytracingObject>(FindObjectsOfType<RaytracingObject>());
+
 
         // Setup compute buffers
-        int typeSize = (sizeof(float) * 3) + sizeof(float) + (sizeof(float) * 4) + (sizeof(float) * 4) + sizeof(int);
+        int sphereSize = sizeof(float) * 4;
+        int matSize = (sizeof(float) * 5) + sizeof(uint);
+        int typeSize = sphereSize + matSize;
         oBuffer = new ComputeBuffer(_raytracingObjects.Count, typeSize);
         typeSize = (sizeof(float) * 2);
         rBuffer = new ComputeBuffer(Screen.width * Screen.height * NumSamples, typeSize);
@@ -93,13 +103,11 @@ public class SimpleRaytracer : MonoBehaviour
         // Convert Raytrace tagged GameObjects into sphere structs
         TSphere[] spheres = new TSphere[_raytracingObjects.Count];
         for(int i =0; i < _raytracingObjects.Count; i++){
-            GameObject rObj = _raytracingObjects[i];
+            RaytracingObject rObj = _raytracingObjects[i];
             TSphere s = new TSphere();
             s.center = rObj.transform.position;
             s.radius = rObj.transform.localScale.x;
-            s.diffuseColor = rObj.GetComponent<MeshRenderer>().material.color;
-            s.specColor = new Vector4(1, 1, 1, 1);
-            s.isReflective = rObj.CompareTag("ReflectiveRaytracingComponent") ? 1 : 0;
+            s.m = rObj.GetMaterialStruct();
 
             spheres[i] = s;
         }
