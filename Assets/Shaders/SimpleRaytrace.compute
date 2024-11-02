@@ -63,6 +63,26 @@ uint numSamples;
 float3 lightPos;
 
 
+// Compare two floats by determing if they are less than a given distance apart
+bool FloatCompare(float a, float b, float dist){
+    float diff = abs(a - b);
+    if(diff < dist){
+        return true;
+    }
+
+    return false;
+}
+
+// Compare two float3s by determing if all the elements are less than a given distance apart from their counterparts
+bool Float3Compare(float3 a, float3 b, float dist){
+    if(FloatCompare(a.x, b.x, dist) && FloatCompare(a.y, b.y, dist) && FloatCompare(a.z, b.z, dist)){
+        return true;
+    }
+    return false;
+}
+
+
+
 // Calculate the distance between points a and b in 3D space
 float Dist3D(float3 a, float3 b){
     return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2) + pow(a.z - b.z, 2));
@@ -240,7 +260,7 @@ float4 CalculateColorVal(Ray r, RaycastHit hit){
         // TODO: Don't hardcode the numerator (light strength)
 
         // Calculate intensity
-        float intensity = 12 / pow(dist, 2);
+        float intensity = 24 / pow(dist, 2);
 
         // Calculate normal vector for the intersection point
         float3 normalVec = hit.intersectionPoint - hit.intersected.centerCoords;
@@ -273,8 +293,9 @@ float4 CalculateColorVal(Ray r, RaycastHit hit){
             // Cast reflection ray
             RaycastHit reflectionHit = CastRay(reflectionRay);
             
-            // If the reflection ray intersected anything
-            if(reflectionHit.hitOccured == 1){
+            // If the reflection ray intersected anything other than itself
+            if(reflectionHit.hitOccured == 1 
+                && !Float3Compare(reflectionHit.intersected.centerCoords, hit.intersected.centerCoords, 0.001)){
                 // Check if the hit surface is shadowed 
                 RaycastHit reflectedShadowHit = CastRay(CreateRay(reflectionHit.intersectionPoint, lightPos));
 
