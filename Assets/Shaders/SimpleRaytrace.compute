@@ -287,7 +287,8 @@ float4 CalculateColorVal(Ray r, RaycastHit hit){
             // Setup reflection ray
             float3 reflectionVector = r.direction - (2 * (r.direction * normalVec) * normalVec);
             Ray reflectionRay;
-            reflectionRay.origin = hit.intersectionPoint;
+             // Move the origin point slightly to prevent intersection at the same point again
+            reflectionRay.origin = hit.intersectionPoint + (-0.001 * r.direction);;
             reflectionRay.direction = reflectionVector;
 
             // Cast reflection ray
