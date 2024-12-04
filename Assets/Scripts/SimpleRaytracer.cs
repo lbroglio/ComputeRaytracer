@@ -105,8 +105,10 @@ public class SimpleRaytracer : MonoBehaviour
         for(int i =0; i < _raytracingObjects.Count; i++){
             RaytracingObject rObj = _raytracingObjects[i];
             TSphere s = new TSphere();
-            s.center = rObj.transform.position;
-            s.radius = rObj.transform.localScale.x;
+            s.center = rObj.transform.TransformPoint(rObj.GetComponent<SphereCollider>().center);
+            // y is inverted to match coordinate systems
+            //s.center = new Vector3(s.center.x, -1 * s.center.y, s.center.z);
+            s.radius = rObj.transform.localScale.x / 2;
             s.m = rObj.GetMaterialStruct();
 
             spheres[i] = s;
