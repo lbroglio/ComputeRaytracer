@@ -1,17 +1,6 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
 
-// Struct which represents a material 
-struct Material{
-    /* Type Mapping
-    * 0 = Lambertian
-    * 1 = Glossy
-    */
-    uint type;
-    float4 baseColor;
-    float attenuation;
-    // TODO: Add more material properties
-};
 
 // Struct which represents a sphere in the scene
 struct Sphere{
@@ -20,11 +9,6 @@ struct Sphere{
     Material m;
 };
 
-// Struct which represents a Ray cast in the screen
-struct Ray{
-    float3 origin;
-    float3 direction;
-};
 
 /* Structure which stores the result of a raycast.
 * Holds a int which marks if an object was hit (o for false, 1 for true),
@@ -32,8 +16,13 @@ struct Ray{
 struct RaycastHit{
     int hitOccured;
     float3 intersectionPoint;
+    float3 uvCoords;
     Sphere intersected;
 };
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Result;
 
 // Color to make pixels which don't intersect with any objects
 float4 backgroundColor;
@@ -41,17 +30,14 @@ float4 backgroundColor;
 // Location of the camera in the scene
 float3 camLoc;
 
-// Create a RenderTexture with enableRandomWrite flag and set it
-// with cs.SetTexture
-RWTexture2D<float4> Result;
-
 // Buffer to fill with the objects in the world
 StructuredBuffer<Sphere> Objects;
 
 // Buffer to fill with the random numbers to be used in execution
+// TODO: Replace this with GPU pseudorandom numbers
 StructuredBuffer<float2> RandomNums;
 
-// Number of object in the world (size of _objects)
+// Number of object in the world (size of objects)
 uint numObjects;
 
 // Width of the screen in pixels
@@ -68,7 +54,6 @@ uint numSamples;
 
 // Position of the primary light (sun) for this scene
 float3 lightPos;
-
 
 
 // Compare two floats by determing if they are less than a given distance apart
@@ -90,55 +75,11 @@ bool Float3Compare(float3 a, float3 b, float dist){
 }
 
 
-
 // Calculate the distance between points a and b in 3D space
 float Dist3D(float3 a, float3 b){
     return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2) + pow(a.z - b.z, 2));
 }
 
-
-// Create a Ray struct from the origing and target points 
-Ray CreateRay(float3 origin, float3 target){
-    // Create the direction vector
-    float3 direction = normalize(target - origin);
-
-    // Create ray structure to return 
-    Ray retVal;
-    retVal.origin = origin;
-    retVal.direction = direction;
-
-    return retVal;
-}
-
-// Create a ray which shoots through the pixel with the given x and y location on the screen
-// Also takes in a random offset from the center of the pixel so a random location within the pixel 
-//can be sampled; this is used for anti-aliasing. 
-Ray CreateRayFromPixelLoc(uint x, uint y, float xOffset, float yOffset){
-    // Calculate the size of a pixel in world coords
-    float pixelSize = screenWidthCoords / screenWidthPixels;  
-
-    // Calculate the x and y change in world coords needed to move by a pixel
-    float aspectRatio = (float)screenWidthPixels / (float)screenHeightPixels;
-    float pixShiftX = screenWidthCoords / screenWidthPixels;
-    float pixShiftY = (screenWidthCoords / screenHeightPixels) / aspectRatio;
-
-    // Calculate the position in world coords of the upper left pixel 
-    float3 worldUpperLeft = float3(camLoc.x - (screenWidthCoords / 2), camLoc.y + (screenHeightCoords / 2), camLoc.z + 1);
-    float3 firstPixelLoc = float3(
-        worldUpperLeft.x + (0.5 * pixShiftX), 
-        worldUpperLeft.y - (0.5 * pixShiftY), 
-        worldUpperLeft.z);
-    
-    // Get the location of a point within this pixel to sample
-    float3 pixelWordPos = float3(
-        firstPixelLoc.x + (x * pixShiftX) + xOffset, 
-        firstPixelLoc.y - (y * pixShiftY) + yOffset, 
-        camLoc.z + 1.0);
-
-    Ray retVal = CreateRay(camLoc, pixelWordPos);
-
-    return retVal;
-}
 
 // Return the closest distance along Ray r at which the r and Sphere s intersect. 
 // If they don't intersect return -1
