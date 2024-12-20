@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 public class SimpleRaytracer : MonoBehaviour
@@ -22,15 +23,27 @@ public class SimpleRaytracer : MonoBehaviour
         */
         public uint type;
         public Vector4 baseColor;
-        public float attenuation;
         // TODO: Add more material properties
     };
+
+    // Type to mirror a uint4 on the GPU
+    public struct TUint4{
+        public uint x;
+        public uint y;
+        public uint z;
+        public uint w;
+    }
 
     public ComputeShader Raytracer;
 
     // Compute buffers
     public ComputeBuffer oBuffer;
     public ComputeBuffer rBuffer;
+
+    // The number of samples to take per pixel
+    public int SamplesPerPixel = 10;
+    // The max number of bounces a scattered ray can make
+    public int MaxDepth = 10;
 
     // Array to hold random numbers 
 
@@ -40,13 +53,9 @@ public class SimpleRaytracer : MonoBehaviour
     // List which holds all the objects in the scene to be considered when raytracing
     private List<RaytracingObject> _raytracingObjects;
 
-
-    // The number of samples to take off every pixel for the purposes of anti aliasing
-    public int NumSamples = 4;
-
     // Globals used for creating the texture / running the shader
     private float aspect;
-    public float WorldHeight;
+    public float WorldHeight = 4;
     private float worldWidth;
 
     // Start is called before the first frame update
@@ -57,35 +66,41 @@ public class SimpleRaytracer : MonoBehaviour
 
 
         // Setup compute buffers
-        int sphereSize = sizeof(float) * 4;
-        int matSize = (sizeof(float) * 5) + sizeof(uint);
-        int typeSize = sphereSize + matSize;
-        oBuffer = new ComputeBuffer(_raytracingObjects.Count, typeSize);
-        typeSize = (sizeof(float) * 2);
-        rBuffer = new ComputeBuffer(Screen.width * Screen.height * NumSamples, typeSize);
+        oBuffer = new ComputeBuffer(_raytracingObjects.Count, Marshal.SizeOf(typeof(TSphere)));
+        rBuffer = new ComputeBuffer(8 * 8, Marshal.SizeOf(typeof(TUint4)));
 
         //Calculate the size of the camera in world coordinates
         aspect = ((float) Screen.width) / ((float) Screen.height);
         WorldHeight = 1;
         worldWidth = WorldHeight * aspect;
-        float pixShiftX = worldWidth / Screen.width;
-        float pixShiftY = (worldWidth / Screen.height) / aspect;
-
-        float halfPixX = pixShiftX / 2;
-        float halfPixY = pixShiftY / 2;
 
         // Setup random numbers to be used by the shader
-        Vector2[] randNums = new Vector2[Screen.width * Screen.height * NumSamples];
-        for(int i = 0; i < Screen.width * Screen.height * NumSamples; i++){
+        TUint4[] seeds = new TUint4[8 * 8];
+        for(int i = 0; i < seeds.Length; i++){
             // Generate random numbers
-            float xOffset = Random.Range(halfPixX * -1, halfPixX);
-            float yOffset = Random.Range(halfPixY * -1, halfPixY);
+            TUint4 randSeed;
+            randSeed.x = (uint) Random.Range(128, 512);
+            randSeed.y = (uint) Random.Range(128, 512);
+            randSeed.z = (uint) Random.Range(128, 512);
+            randSeed.w = (uint) Random.Range(128, 512);
+
 
             // Create vector containing random offsets and add it to array
-            randNums[i] = new Vector2(xOffset, yOffset);
-            //Debug.Log(randNums[i]);
+            seeds[i] = randSeed;
         }
-        rBuffer.SetData(randNums);
+        rBuffer.SetData(seeds);
+
+        // Set Raytracer constants that don't change each frame
+        int kernel = Raytracer.FindKernel("CSMain");
+        Raytracer.SetVector("backgroundColor", new Vector4(125 / 255.0f, 206 / 255.0f, 235 / 255.0f, 1));
+        Raytracer.SetBuffer(kernel, "RandomStates", rBuffer);
+        Raytracer.SetInt("screenWidthPixels", Screen.width);
+        Raytracer.SetInt("screenHeightPixels", Screen.height);
+        Raytracer.SetFloat("screenWidthCoords", worldWidth);
+        Raytracer.SetFloat("screenHeightCoords", WorldHeight);
+        Raytracer.SetInt("numSamples", SamplesPerPixel);
+        Raytracer.SetInt("maxDepth", MaxDepth);
+
 
     }
 
@@ -128,15 +143,8 @@ public class SimpleRaytracer : MonoBehaviour
         int kernel = Raytracer.FindKernel("CSMain");
         Raytracer.SetTexture(kernel, "Result", _tex);
 
-        // Set up configuration constants
-        Raytracer.SetVector("backgroundColor", new Vector4(125 / 255.0f, 206 / 255.0f, 235 / 255.0f, 1));
         Raytracer.SetVector("camLoc", gameObject.transform.position);
         Raytracer.SetInt("numObjects", spheres.Length);
-        Raytracer.SetInt("screenWidthPixels", Screen.width);
-        Raytracer.SetInt("screenHeightPixels", Screen.height);
-        Raytracer.SetFloat("screenWidthCoords", worldWidth);
-        Raytracer.SetFloat("screenHeightCoords", WorldHeight);
-        Raytracer.SetInt("numSamples", NumSamples);
 
         // Setup the light
         GameObject light = GameObject.Find("RaytracingLight");
@@ -146,7 +154,6 @@ public class SimpleRaytracer : MonoBehaviour
         // Set buffer data
         oBuffer.SetData(spheres);
         Raytracer.SetBuffer(kernel, "Objects", oBuffer);
-        Raytracer.SetBuffer(kernel, "RandomNums", rBuffer);
 
         // Dispatch shader
         int workgroupsX = Mathf.CeilToInt(Screen.width / 8.0f);

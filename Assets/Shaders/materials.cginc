@@ -6,7 +6,6 @@ struct Material{
     */
     uint type;
     float4 albedo;
-    float attenuation;
     // TODO: Add more material properties
 };
 

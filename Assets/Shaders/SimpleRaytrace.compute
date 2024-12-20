@@ -1,6 +1,7 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
-
+#include "ray.cginc"
+#include "materials.cginc"
 
 // Struct which represents a sphere in the scene
 struct Sphere{
@@ -15,10 +16,47 @@ struct Sphere{
 * the intersectionPoint, and what object was intersected */
 struct RaycastHit{
     int hitOccured;
+    // TODO: Use in texture mapping later
+    float2 uvCoords;
     float3 intersectionPoint;
-    float3 uvCoords;
-    Sphere intersected;
+    float3 intersectedNormal;
+    Material intersectedMat;
 };
+
+
+/***** RANDOM *****/
+
+// Buffer which stores the state of the random number for each thread
+RWStructuredBuffer<uint4> RandomStates;
+
+uint tausStep(uint z, int S1, int S2, int S3, uint M)
+{
+    uint b = (((z << S1) ^ z) >> S2);
+    return ((z & M) << S3) ^ b;
+}
+
+uint LCGStep(uint z, uint A, uint C)
+{
+    return A * z + C;
+}
+
+float hybridTaus(uint2 id)
+{
+    uint4 state = RandomStates[((id.x % 8) * 8) + (id.y % 8)];
+    state.x = tausStep(state.x, 13, 19, 12, 4294967294);
+    state.y = tausStep(state.y, 2, 25, 4, 4294967288);
+    state.z = tausStep(state.z, 3, 11, 17, 4294967280);
+    state.w = LCGStep(state.w, 1664525, 1013904223);
+
+    RandomStates[((id.x % 8) * 8) + (id.y % 8)] = state;
+    return 2.3283064365387e-10 * (state.x ^ state.y ^ state.z ^ state.w);
+}
+
+float randomInRange(uint2 id, float low, float high){
+    return (hybridTaus(id) * (high - low)) + low;
+}
+
+/***** END OF RANDOM *****/
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
@@ -32,10 +70,6 @@ float3 camLoc;
 
 // Buffer to fill with the objects in the world
 StructuredBuffer<Sphere> Objects;
-
-// Buffer to fill with the random numbers to be used in execution
-// TODO: Replace this with GPU pseudorandom numbers
-StructuredBuffer<float2> RandomNums;
 
 // Number of object in the world (size of objects)
 uint numObjects;
@@ -51,13 +85,15 @@ float screenHeightCoords;
 
 // Number of samples to take within each pixel (Number of rays to cast for each pixel)
 uint numSamples;
+// The maximum bounce depth of scattered rays
+uint maxDepth;
 
 // Position of the primary light (sun) for this scene
 float3 lightPos;
 
 
 // Compare two floats by determing if they are less than a given distance apart
-bool FloatCompare(float a, float b, float dist){
+bool floatCompare(float a, float b, float dist){
     float diff = abs(a - b);
     if(diff < dist){
         return true;
@@ -67,8 +103,8 @@ bool FloatCompare(float a, float b, float dist){
 }
 
 // Compare two float3s by determing if all the elements are less than a given distance apart from their counterparts
-bool Float3Compare(float3 a, float3 b, float dist){
-    if(FloatCompare(a.x, b.x, dist) && FloatCompare(a.y, b.y, dist) && FloatCompare(a.z, b.z, dist)){
+bool float3Compare(float3 a, float3 b, float dist){
+    if(floatCompare(a.x, b.x, dist) && floatCompare(a.y, b.y, dist) && floatCompare(a.z, b.z, dist)){
         return true;
     }
     return false;
@@ -76,14 +112,14 @@ bool Float3Compare(float3 a, float3 b, float dist){
 
 
 // Calculate the distance between points a and b in 3D space
-float Dist3D(float3 a, float3 b){
+float dist3D(float3 a, float3 b){
     return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2) + pow(a.z - b.z, 2));
 }
 
 
 // Return the closest distance along Ray r at which the r and Sphere s intersect. 
 // If they don't intersect return -1
-float FindIntersectionPoint(Ray r, Sphere s){
+float findIntersectionPoint(Ray r, Sphere s){
     // Check for intersection by calculating the discriminant of the equation created by combining them (TODO: Reword)
 
     // Calculate r.origin - s.center
@@ -130,8 +166,41 @@ float FindIntersectionPoint(Ray r, Sphere s){
     }
 }
 
+
+
+
+// Create a ray which shoots through the pixel with the given x and y location on the screen
+// Also takes in a random offset from the center of the pixel so a random location within the pixel 
+// can be sampled; this is used for anti-aliasing. 
+Ray createRayFromPixelLoc(uint x, uint y, float xOffset, float yOffset){
+    // Calculate the size of a pixel in world coords
+    float pixelSize = screenWidthCoords / screenWidthPixels;  
+
+    // Calculate the x and y change in world coords needed to move by a pixel
+    float aspectRatio = (float)screenWidthPixels / (float)screenHeightPixels;
+    float pixShiftX = screenWidthCoords / screenWidthPixels;
+    float pixShiftY = (screenWidthCoords / screenHeightPixels) / aspectRatio;
+
+    // Calculate the position in world coords of the upper left pixel 
+    float3 worldUpperLeft = float3(camLoc.x - (screenWidthCoords / 2), camLoc.y + (screenHeightCoords / 2), camLoc.z + 1);
+    float3 firstPixelLoc = float3(
+        worldUpperLeft.x + (0.5 * pixShiftX), 
+        worldUpperLeft.y - (0.5 * pixShiftY), 
+        worldUpperLeft.z);
+    
+    // Get the location of a point within this pixel to sample
+    float3 pixelWordPos = float3(
+        firstPixelLoc.x + (x * pixShiftX) + xOffset, 
+        firstPixelLoc.y - (y * pixShiftY) + yOffset, 
+        camLoc.z + 1.0);
+
+    Ray retVal = createRay(camLoc, pixelWordPos);
+
+    return retVal;
+}
+
 // Find the color a given pixel should be by casting a ray into the scene
-RaycastHit CastRay(Ray r){
+RaycastHit castRay(Ray r){
     float3 closestPoint;
     // Start with an arbitrary high number of a stand in for infinity
     float closestPointDist = 100000;
@@ -144,7 +213,7 @@ RaycastHit CastRay(Ray r){
         Sphere s = Objects[i];
 
         // Get (closest) point along r it intersects with s
-        float t = FindIntersectionPoint(r, s);
+        float t = findIntersectionPoint(r, s);
 
         // If t < 0  move on because that indicates no intersection
         if(t >= 0){
@@ -160,39 +229,115 @@ RaycastHit CastRay(Ray r){
 
     // Create RaycastHit struct based on chosen intersection point (or none)
     RaycastHit rh;
+    // No intersection occured
     if(closestPointDist == 100000){
         rh.hitOccured = 0;
+        // Arbitrary past this point
         rh.intersectionPoint = camLoc;
-        rh.intersected = Objects[0];
+        rh.intersectedMat = Objects[0].m;
+        rh.intersectedNormal = float3(0, 0, 0);
+        rh.uvCoords = float2(0, 0);
     }
     else{
         rh.hitOccured = 1;
         rh.intersectionPoint = closestPoint;
-        rh.intersected = Objects[closestPointObjIndex];
+        // TODO: Change this for when other shapes are intersected
+        rh.intersectedNormal = normalize(closestPoint - Objects[closestPointObjIndex].centerCoords);
+        rh.intersectedMat = Objects[closestPointObjIndex].m;
+        // TODO: Implement UV coords
+        rh.uvCoords = float2(0, 0);
     }
 
     return rh;
-    
+}
+
+
+// Generate a random Vector which has all components within the unit sphere
+float3 randomUnitVector(uint2 id) {
+    uint numIts = 0;
+    while (1 == 1) {
+
+        float xComp = randomInRange(id, -1, 1);
+        float yComp = randomInRange(id, -1, 1);
+        float ZComp = randomInRange(id, -1, 1);
+        float3 p = float3(xComp, yComp, ZComp);
+        float lensq = (p.x * p.x) + (p.y * p.y) + (p.z * p.z);
+        if (1e-160 < lensq && lensq <= 1){
+            return p / sqrt(lensq);
+        }
+
+        if(numIts > 1000){
+            return float3(1, 0, 0); 
+        }
+    }
+
+    return float3(1, 0, 0);
+}
+
+// Return a random vector in the same hemisphere as the provided normal
+float3 randomOnHemisphere(float3 normal, uint2 id) {
+    float3 randomUnitVec = randomUnitVector(id);
+
+    // Check if this vector is in the same hemisphere as the normal
+    if (dot(randomUnitVec, normal) > 0.0){
+        return randomUnitVec;
+
+    } 
+    else{
+        return -1 * randomUnitVec;
+    }
+}
+
+// Cast scatter rays for lambertian diffuse material
+float4 diffuseScatter(float3 intersectionPoint, float3 normal, float4 startingAttenuation, float2 id){
+    uint currDepth = 0;
+    float4 pixelColor = startingAttenuation; 
+
+    while(currDepth < maxDepth){
+        float3 scatteredDirection = randomOnHemisphere(normal, id);
+        Ray scatteredRay = createRay(intersectionPoint, scatteredDirection);
+        RaycastHit scatteredHit = castRay(scatteredRay);
+        
+        // If no hit occured stop bouncing
+        if(scatteredHit.hitOccured == 0){
+            // TODO: Change to background after testing
+            return pixelColor * backgroundColor;
+        }
+
+        // If a hit occured update current color with newly gathered light 
+        // TODO: This should be able to scatter based on material type
+        pixelColor * scatteredHit.intersectedMat.albedo;
+
+        // Setup next scatter 
+        currDepth+=1;
+        intersectionPoint = scatteredHit.intersectionPoint;
+        normal = scatteredHit.intersectedNormal;
+    }
+
+    // Once over max depth stop bouncing
+    // TODO: Change to background after testing
+    return pixelColor * backgroundColor;
 }
 
 // Calculate the color a pixel should be based on its ray and that rays closest intersection with an object in the screen
 // (or lack thereof)
-float4 CalculateColorVal(Ray r, RaycastHit hit){
+float4 calculateColorVal(Ray r, RaycastHit hit, uint2 id){
     // If no hit occured return background color
     if(hit.hitOccured == 0){
         return backgroundColor;
     }
-     // TODO: Add more complex materials and lighting calculation
-    // Otherwise calculate the lighting value
+    // TODO: Add more materials and lighting calculation
+    // Otherwise calculate the lighting value based on material
     else{
-        // Calculate distance between camera and intersection point
-        float dist = Dist3D(r.origin, hit.intersectionPoint);
 
+         // TODO: Reimplement shadows for refactor
+        /*
         // Check if this point is shadowed
         // Move the origin point slightly to prevent intersection at the same point again
         float3 offSetRay = hit.intersectionPoint + (-0.001 * r.direction);
-        Ray shadowRay = CreateRay(offSetRay, lightPos);
-        RaycastHit shadowRaycast = CastRay(shadowRay);
+        Ray shadowRay = createRay(offSetRay, lightPos);
+        RaycastHit shadowRaycast = castRay(shadowRay);
+
 
         // If this point is shadowed
         float shadowCoefficient = 1;
@@ -200,51 +345,16 @@ float4 CalculateColorVal(Ray r, RaycastHit hit){
             // Darken it by a specific percentage
             shadowCoefficient = 0.8;
         }
+        */
 
-        // TODO: Calculate specular lighting and reflection
-            
-        // Calculate normal vector for the intersection point
-        float3 normalVec = hit.intersectionPoint - hit.intersected.centerCoords;
-        normalVec = normalize(normalVec);
-
-        // Calculate reflection vector
-        Ray lightToPoint = CreateRay(lightPos, hit.intersectionPoint);
-        float3 lightReflectionVector = lightToPoint.direction - (2 * (lightToPoint.direction * normalVec) * normalVec);
-
-        // Calculate diffuse coefficient
-        float kd = max(0.0, dot(normalVec, shadowRay.direction));
-
-        // Calculate specular coefficient
-        //float ks = pow(max(dot(shadowRay.direction, lightReflectionVector), 0.0), 8.0);
-
-        // Calculate diffuse color
-        float4 diffuseColor = kd * hit.intersected.m.baseColor;
-
-        // Calculate specular color
-        //float4 specColor = ks * hit.intersected.specColor;
-
-        // If the being surface is reflective and not shadowed check if a reflection is being cast on it
-        if(hit.intersected.m.type == 1 && shadowCoefficient == 1){
-            // Setup reflection ray
-            float3 reflectionVector = r.direction - (2 * (r.direction * normalVec) * normalVec);
-            Ray reflectionRay;
-             // Move the origin point slightly to prevent intersection at the same point again
-            reflectionRay.origin = hit.intersectionPoint + (-0.001 * r.direction);;
-            reflectionRay.direction = reflectionVector;
-
-            // Cast reflection ray
-            RaycastHit reflectionHit = CastRay(reflectionRay);
-            
-            // If the reflection ray intersected anything other than itself
-            if(reflectionHit.hitOccured == 1 
-                && !Float3Compare(reflectionHit.intersected.centerCoords, hit.intersected.centerCoords, 0.001)){
-                // Sample surface intersected by reflection ray
-                return (0.1 * (diffuseColor)) + (0.9 * reflectionHit.intersected.m.baseColor);
-            }
+        // If this material is diffuse/lambertian
+        float4 pixelCol;
+        if(hit.intersectedMat.type == 0){
+            pixelCol = diffuseScatter(hit.intersectionPoint, hit.intersectedNormal, hit.intersectedMat.albedo, id);
         }
 
         // Otherwise calculate without casting reflection rays
-        return diffuseColor * shadowCoefficient;
+        return pixelCol;
 
     }
 }
@@ -256,19 +366,27 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     // Get the colors to make this pixel using a raycast
     float4 finalPixelColor = float4(0, 0, 0, 0);
 
+    // Pixel info
+    float aspectRatio = screenWidthPixels / screenHeightPixels;
+    float pixShiftX = screenWidthCoords / screenWidthPixels;
+    float pixShiftY = (screenWidthCoords / screenHeightPixels) / aspectRatio;
+    float halfPixX = pixShiftX / 2;
+    float halfPixY = pixShiftY / 2;
+
     // Take all the samples 
     for(uint i =0; i < numSamples; i++){
-        // Get random offset passed from CPU
-        float2 randOffset = RandomNums[(id.y * screenWidthPixels) + id.x + i];
+        // Get random offset
+        float randOffsetX = randomInRange(id.xy, halfPixX * -1, halfPixX);
+        float randOffsetY = randomInRange(id.xy, halfPixY * -1, halfPixY);
 
         // Create the ray 
-        Ray r = CreateRayFromPixelLoc(id.x, id.y, randOffset.x, randOffset.y);
+        Ray r = createRayFromPixelLoc(id.x, id.y, randOffsetX, randOffsetY);
         
         // Cast the ray into the scene
-        RaycastHit raycast = CastRay(r);
+        RaycastHit raycast = castRay(r);
 
         // Calculate color sample
-        float4 pixelCol = CalculateColorVal(r, raycast);
+        float4 pixelCol = calculateColorVal(r, raycast, id.xy);
 
         // Add sampled color to the final color
         finalPixelColor = finalPixelColor + pixelCol;

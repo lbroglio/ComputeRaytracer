@@ -8,14 +8,12 @@ public class RaytracingObject : MonoBehaviour
 
     public Vector4 BaseColor = Vector3.zero;
 
-    public float Attenuation = 0.1f;
 
     // Get the material properties of this Object as a struct which can be passed to the GPU
     public SimpleRaytracer.TMaterial GetMaterialStruct(){
         SimpleRaytracer.TMaterial m;
         m.type = MaterialType;
         m.baseColor = BaseColor;
-        m.attenuation = Attenuation;
 
         return m;
     }

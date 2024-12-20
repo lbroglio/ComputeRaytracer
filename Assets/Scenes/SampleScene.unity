@@ -367,7 +367,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   MaterialType: 0
   BaseColor: {x: 0, y: 0, z: 0, w: 0}
-  Attenuation: 0.1
 --- !u!1 &854934828
 GameObject:
   m_ObjectHideFlags: 0
@@ -516,7 +515,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   MaterialType: 0
   BaseColor: {x: 0, y: 0, z: 0, w: 0}
-  Attenuation: 0.1
 --- !u!1 &963194225
 GameObject:
   m_ObjectHideFlags: 0
@@ -623,8 +621,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   Raytracer: {fileID: 7200000, guid: 4fbb119c00a53488dbba14574c87b19a, type: 3}
-  NumSamples: 4
-  WorldHeight: 0
+  SamplesPerPixel: 10
+  MaxDepth: 10
+  WorldHeight: 4
 --- !u!1 &1302385078
 GameObject:
   m_ObjectHideFlags: 0
@@ -760,7 +759,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   MaterialType: 0
   BaseColor: {x: 0, y: 0, z: 0, w: 0}
-  Attenuation: 0.1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
