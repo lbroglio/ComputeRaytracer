@@ -91,6 +91,15 @@ uint maxDepth;
 // Position of the primary light (sun) for this scene
 float3 lightPos;
 
+// TODO: This should be part of the material at some point
+float reflectance = 0.4;
+
+// Combine two colors using alpha blending.
+// a is the weight of c1
+float4 colorBlend(float4 c1, float4 c2, float a){
+    return (c1 * a) + (c2 * (1 - a));
+}
+
 
 // Compare two floats by determing if they are less than a given distance apart
 bool floatCompare(float a, float b, float dist){
@@ -165,8 +174,6 @@ float findIntersectionPoint(Ray r, Sphere s){
 
     }
 }
-
-
 
 
 // Create a ray which shoots through the pixel with the given x and y location on the screen
@@ -266,9 +273,11 @@ float3 randomUnitVector(uint2 id) {
             return p / sqrt(lensq);
         }
 
+        /*
         if(numIts > 1000){
             return float3(1, 0, 0); 
         }
+            */
     }
 
     return float3(1, 0, 0);
@@ -294,6 +303,15 @@ float4 diffuseScatter(float3 intersectionPoint, float3 normal, float4 startingAt
     float4 pixelColor = startingAttenuation; 
 
     while(currDepth < maxDepth){
+        // TODO: Decide on reflectance model
+        // Decide whether to absorb ray or
+        /*
+        float scatterChance = randomInRange(id, 0, 1);
+        if(scatterChance > 0.6){
+            return pixelColor;
+        }
+        */
+
         float3 scatteredDirection = randomOnHemisphere(normal, id);
         Ray scatteredRay = createRay(intersectionPoint, scatteredDirection);
         RaycastHit scatteredHit = castRay(scatteredRay);
@@ -301,12 +319,12 @@ float4 diffuseScatter(float3 intersectionPoint, float3 normal, float4 startingAt
         // If no hit occured stop bouncing
         if(scatteredHit.hitOccured == 0){
             // TODO: Change to background after testing
-            return pixelColor * backgroundColor;
+            return colorBlend(pixelColor, backgroundColor, 0.8);
         }
 
-        // If a hit occured update current color with newly gathered light 
+    
         // TODO: This should be able to scatter based on material type
-        pixelColor * scatteredHit.intersectedMat.albedo;
+        pixelColor = colorBlend(pixelColor, scatteredHit.intersectedMat.albedo, 0.8);
 
         // Setup next scatter 
         currDepth+=1;
@@ -316,7 +334,7 @@ float4 diffuseScatter(float3 intersectionPoint, float3 normal, float4 startingAt
 
     // Once over max depth stop bouncing
     // TODO: Change to background after testing
-    return pixelColor * backgroundColor;
+    return pixelColor;
 }
 
 // Calculate the color a pixel should be based on its ray and that rays closest intersection with an object in the screen
@@ -329,6 +347,10 @@ float4 calculateColorVal(Ray r, RaycastHit hit, uint2 id){
     // TODO: Add more materials and lighting calculation
     // Otherwise calculate the lighting value based on material
     else{
+        // Calculate distance between camera and intersection point
+        float dist = dist3D(r.origin, hit.intersectionPoint);
+        // Light intensity dropoff from distance
+        float distCoefficient = min(1, 7 / (dist * dist));
 
          // TODO: Reimplement shadows for refactor
         /*
