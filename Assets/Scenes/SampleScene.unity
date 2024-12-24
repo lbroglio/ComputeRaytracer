@@ -621,7 +621,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   Raytracer: {fileID: 7200000, guid: 4fbb119c00a53488dbba14574c87b19a, type: 3}
-  SamplesPerPixel: 50
+  SamplesPerPixel: 75
   MaxDepth: 10
   WorldHeight: 4
 --- !u!1 &1302385078

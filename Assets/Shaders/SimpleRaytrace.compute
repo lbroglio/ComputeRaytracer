@@ -42,13 +42,13 @@ uint LCGStep(uint z, uint A, uint C)
 
 float hybridTaus(uint2 id)
 {
-    uint4 state = RandomStates[((id.x % 8) * 8) + (id.y % 8)];
+    uint4 state = RandomStates[((id.x % 16) * 16) + (id.y % 16)];
     state.x = tausStep(state.x, 13, 19, 12, 4294967294);
     state.y = tausStep(state.y, 2, 25, 4, 4294967288);
     state.z = tausStep(state.z, 3, 11, 17, 4294967280);
     state.w = LCGStep(state.w, 1664525, 1013904223);
 
-    RandomStates[((id.x % 8) * 8) + (id.y % 8)] = state;
+    RandomStates[((id.x % 16) * 16) + (id.y % 16)] = state;
     return 2.3283064365387e-10 * (state.x ^ state.y ^ state.z ^ state.w);
 }
 
@@ -114,6 +114,14 @@ bool floatCompare(float a, float b, float dist){
 // Compare two float3s by determing if all the elements are less than a given distance apart from their counterparts
 bool float3Compare(float3 a, float3 b, float dist){
     if(floatCompare(a.x, b.x, dist) && floatCompare(a.y, b.y, dist) && floatCompare(a.z, b.z, dist)){
+        return true;
+    }
+    return false;
+}
+
+// Compare two float4s on whether or not there components are exactly equal
+bool float4ExactCompare(float4 a, float4 b){
+    if(a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w){
         return true;
     }
     return false;
@@ -298,9 +306,9 @@ float3 randomOnHemisphere(float3 normal, uint2 id) {
 }
 
 // Cast scatter rays for lambertian diffuse material
-float4 diffuseScatter(float3 intersectionPoint, float3 normal, float4 startingAttenuation, float2 id){
+float4 diffuseScatter(float3 intersectionPoint, float3 normal, float2 id){
     uint currDepth = 0;
-    float4 pixelColor = startingAttenuation; 
+    float4 pixelColor = float4(0, 0, 0, 0); 
 
     while(currDepth < maxDepth){
         // TODO: Decide on reflectance model
@@ -312,19 +320,39 @@ float4 diffuseScatter(float3 intersectionPoint, float3 normal, float4 startingAt
         }
         */
 
+        // TODO: This should be able to scatter based on material type
         float3 scatteredDirection = randomOnHemisphere(normal, id);
         Ray scatteredRay = createRay(intersectionPoint, scatteredDirection);
         RaycastHit scatteredHit = castRay(scatteredRay);
-        
+
+
         // If no hit occured stop bouncing
         if(scatteredHit.hitOccured == 0){
-            // TODO: Change to background after testing
-            return colorBlend(pixelColor, backgroundColor, 0.8);
+            // If the pixel color isn't set then return background
+            /*
+            if(pixelColor.x == -1){
+                return backgroundColor;
+            }
+            */
+            // Return color
+            return pixelColor;
         }
 
-    
-        // TODO: This should be able to scatter based on material type
-        pixelColor = colorBlend(pixelColor, scatteredHit.intersectedMat.albedo, 0.8);
+        float3 offSetRay = scatteredHit.intersectionPoint + (-0.001 * scatteredRay.direction);
+        Ray shadowRay = createRay(offSetRay, lightPos);
+        RaycastHit shadowRaycast = castRay(shadowRay);
+        // If this point is not in shadow then light can be gathered
+        if(shadowRaycast.hitOccured == 0){
+            // If the pixel color isn't set then set it 
+            if(pixelColor.x == 0){
+                pixelColor = scatteredHit.intersectedMat.albedo;
+            }
+            // Otherwise blend colors
+            else{
+                pixelColor = colorBlend(pixelColor, scatteredHit.intersectedMat.albedo, 0.8);
+            }
+        }
+
 
         // Setup next scatter 
         currDepth+=1;
@@ -353,7 +381,7 @@ float4 calculateColorVal(Ray r, RaycastHit hit, uint2 id){
         float distCoefficient = min(1, 7 / (dist * dist));
 
          // TODO: Reimplement shadows for refactor
-        /*
+
         // Check if this point is shadowed
         // Move the origin point slightly to prevent intersection at the same point again
         float3 offSetRay = hit.intersectionPoint + (-0.001 * r.direction);
@@ -362,17 +390,35 @@ float4 calculateColorVal(Ray r, RaycastHit hit, uint2 id){
 
 
         // If this point is shadowed
-        float shadowCoefficient = 1;
-        if(shadowRaycast.hitOccured != 0){
-            // Darken it by a specific percentage
-            shadowCoefficient = 0.8;
-        }
-        */
-
-        // If this material is diffuse/lambertian
+        bool inShadow = false;
         float4 pixelCol;
+        if(shadowRaycast.hitOccured != 0){
+            // Pixel color is black
+            pixelCol = float4(0, 0, 0, 0);
+            inShadow = true;
+        }
+        // Otherwise pixel is set by material
+        else{
+            // TODO: This should vary based on the material
+            pixelCol = hit.intersectedMat.albedo;
+        }
+        
+        // TODO: Implement for other materials
+        // If this material is diffuse/lambertian
         if(hit.intersectedMat.type == 0){
-            pixelCol = diffuseScatter(hit.intersectionPoint, hit.intersectedNormal, hit.intersectedMat.albedo, id);
+            // Gather scattered light
+            float4 scatterComp = diffuseScatter(hit.intersectionPoint, hit.intersectedNormal, id);      
+            if(inShadow){
+                // If there is scattered light 
+                if(!float4ExactCompare(scatterComp, float4(0, 0, 0, 0))){
+                    pixelCol = colorBlend(hit.intersectedMat.albedo, scatterComp, 0.5);
+                }
+            }
+            // Otherwise blend colors
+            else{
+                pixelCol = colorBlend(pixelCol, scatterComp, 0.8);
+            }
+
         }
 
         // Otherwise calculate without casting reflection rays
@@ -382,7 +428,7 @@ float4 calculateColorVal(Ray r, RaycastHit hit, uint2 id){
 }
 
 
-[numthreads(8,8,1)]
+[numthreads(16,16,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
     // Get the colors to make this pixel using a raycast

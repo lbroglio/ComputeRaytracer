@@ -67,7 +67,7 @@ public class SimpleRaytracer : MonoBehaviour
 
         // Setup compute buffers
         oBuffer = new ComputeBuffer(_raytracingObjects.Count, Marshal.SizeOf(typeof(TSphere)));
-        rBuffer = new ComputeBuffer(8 * 8, Marshal.SizeOf(typeof(TUint4)));
+        rBuffer = new ComputeBuffer(16 * 16, Marshal.SizeOf(typeof(TUint4)));
 
         //Calculate the size of the camera in world coordinates
         aspect = ((float) Screen.width) / ((float) Screen.height);
@@ -75,7 +75,7 @@ public class SimpleRaytracer : MonoBehaviour
         worldWidth = WorldHeight * aspect;
 
         // Setup random numbers to be used by the shader
-        TUint4[] seeds = new TUint4[8 * 8];
+        TUint4[] seeds = new TUint4[16 * 16];
         for(int i = 0; i < seeds.Length; i++){
             // Generate random numbers
             TUint4 randSeed;
@@ -156,8 +156,8 @@ public class SimpleRaytracer : MonoBehaviour
         Raytracer.SetBuffer(kernel, "Objects", oBuffer);
 
         // Dispatch shader
-        int workgroupsX = Mathf.CeilToInt(Screen.width / 8.0f);
-        int workgroupsY = Mathf.CeilToInt(Screen.height / 8.0f);
+        int workgroupsX = Mathf.CeilToInt(Screen.width / 16.0f);
+        int workgroupsY = Mathf.CeilToInt(Screen.height / 16.0f);
         Raytracer.Dispatch(kernel, workgroupsX, workgroupsY, 1);
 
 
